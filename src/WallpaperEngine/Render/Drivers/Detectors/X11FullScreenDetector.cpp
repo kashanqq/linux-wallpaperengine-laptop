@@ -2,6 +2,7 @@
 #include "WallpaperEngine/Logging/Log.h"
 
 #include <X11/Xlib.h>
+#include <X11/Xatom.h>
 #include <X11/extensions/Xrandr.h>
 
 #include "WallpaperEngine/Render/Drivers/GLFWOpenGLDriver.h"
@@ -31,12 +32,8 @@ int CustomXIOErrorHandler (Display* dsp) {
 
 X11FullScreenDetector::X11FullScreenDetector (Application::ApplicationContext& appContext, VideoDriver& driver) :
     FullScreenDetector (appContext), m_display (nullptr), m_root (0), m_driver (driver) {
-    try {
-	// attempt casting to CGLFWOpenGLDriver, this will throw if it's not possible
-	// so we can gracely handle the error
-	std::ignore = dynamic_cast<GLFWOpenGLDriver&> (this->m_driver);
-    } catch (std::exception&) {
-	sLog.exception ("X11 FullScreen Detector initialized with the wrong video driver... This is a bug...");
+    if (dynamic_cast<GLFWOpenGLDriver*> (&this->m_driver) == nullptr) {
+	sLog.debug ("X11 FullScreen Detector initialized with a non-GLFW video driver (likely Wayland).");
     }
 
     // do not use previous handler, it might stop the app under weird circumstances
@@ -52,12 +49,14 @@ X11FullScreenDetector::X11FullScreenDetector (Application::ApplicationContext& a
 X11FullScreenDetector::~X11FullScreenDetector () { this->stop (); }
 
 bool X11FullScreenDetector::anythingFullscreen () const {
-    const auto& ctx = this->getApplicationContext();
+    const auto& ctx = this->getApplicationContext ();
 
-    const auto ourWindow = reinterpret_cast<Window> (dynamic_cast<GLFWOpenGLDriver&> (this->m_driver).getWindow ());
-    Window parentWindow;
+    Window ourWindow = None;
+    Window parentWindow = None;
 
-    {
+    if (auto* glfwDriver = dynamic_cast<GLFWOpenGLDriver*> (&this->m_driver)) {
+	ourWindow = reinterpret_cast<Window> (glfwDriver->getWindow ());
+
 	Window root, *schildren = nullptr;
 	unsigned int num_children;
 
@@ -70,11 +69,13 @@ bool X11FullScreenDetector::anythingFullscreen () const {
 	}
     }
 
-    if (ctx.settings.render.pauseOnUnfocused) {
+    if (ctx.settings.render.pauseOnUnfocused && !ctx.settings.render.forceX11Detector) {
 	Window focusWindow;
 	int revertTo;
-	XGetInputFocus(this->m_display, &focusWindow, &revertTo);
-	if (focusWindow != None && focusWindow != PointerRoot && focusWindow != ourWindow && focusWindow != parentWindow && focusWindow != this->m_root) {
+	XGetInputFocus (this->m_display, &focusWindow, &revertTo);
+
+	if (focusWindow != None && focusWindow != PointerRoot && focusWindow != ourWindow && focusWindow != parentWindow
+	    && focusWindow != this->m_root) {
 	    return true;
 	}
     }
@@ -83,42 +84,50 @@ bool X11FullScreenDetector::anythingFullscreen () const {
         return false;
     }
 
+    Atom netWmState = XInternAtom(this->m_display, "_NET_WM_STATE", False);
+    Atom netWmStateFullscreen = XInternAtom(this->m_display, "_NET_WM_STATE_FULLSCREEN", False);
+
     bool isFullscreen = false;
-    XWindowAttributes attribs;
-    Window _;
-    Window* children;
+    Window root, parent, *children;
     unsigned int nchildren;
 
-    if (!XQueryTree (this->m_display, this->m_root, &_, &_, &children, &nchildren)) {
+    if (!XQueryTree (this->m_display, this->m_root, &root, &parent, &children, &nchildren)) {
 	return false;
     }
 
     for (unsigned int i = 0; i < nchildren; i++) {
-	if (!XGetWindowAttributes (this->m_display, children[i], &attribs)) {
-	    continue;
-	}
+	Window window = children[i];
 
-	// ignore ourselves
-	if (ourWindow == children[i] || parentWindow == children[i]) {
-	    continue;
-	}
+	XWindowAttributes attr;
+	if (XGetWindowAttributes (this->m_display, window, &attr) && attr.map_state == IsViewable) {
+	    Atom actualType;
+	    int actualFormat;
+	    unsigned long nItems, bytesAfter;
+	    unsigned char* data = nullptr;
 
-	if (attribs.map_state != IsViewable) {
-	    continue;
-	}
-
-	// compare width and height with the different screens we have
-	for (const auto& [name, viewport] : this->m_screens) {
-	    if (attribs.x == viewport.x && attribs.y == viewport.y && attribs.width == viewport.z
-		&& attribs.height == viewport.w) {
-		isFullscreen = true;
-		break;
+	    if (XGetWindowProperty (
+		    this->m_display, window, netWmState, 0, 1024, False, XA_ATOM, &actualType, &actualFormat, &nItems,
+		    &bytesAfter, &data
+		)
+		== Success) {
+		if (data) {
+		    Atom* atoms = reinterpret_cast<Atom*> (data);
+		    for (unsigned long j = 0; j < nItems; j++) {
+			if (atoms[j] == netWmStateFullscreen) {
+			    isFullscreen = true;
+			    sLog.debug ("X11 Detector: Found fullscreen window: ", window);
+			    break;
+			}
+		    }
+		    XFree (data);
+		}
 	    }
 	}
+	if (isFullscreen)
+	    break;
     }
 
     XFree (children);
-
     return isFullscreen;
 }
 

@@ -97,6 +97,8 @@ public:
 	    bool pauseOnMaximized;
 	    /** Indicates if pausing should happen when another window is focused */
 	    bool pauseOnUnfocused;
+	    /** Forces using the X11 detector instead of the Wayland one (useful for KDE Plasma) */
+	    bool forceX11Detector;
 	    /**
 	     * Wayland-only: if true, only consider fullscreen toplevels that are also activated.
 	     * Useful for compositors with "virtual" fullscreen windows (e.g. scrollable tiling).
@@ -170,6 +172,7 @@ public:
             .pauseOnFullscreen = true,
             .pauseOnMaximized = false,
             .pauseOnUnfocused = false,
+            .forceX11Detector = false,
             .pauseOnFullscreenOnlyWhenActive = false,
             .fullscreenPauseIgnoreAppIds = {},
             .window = {

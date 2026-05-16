@@ -650,8 +650,10 @@ void WallpaperApplication::setupOutput () {
     this->m_videoDriver = sVideoFactories.createVideoDriver (
 	this->m_context.settings.render.mode, XDG_SESSION_TYPE, this->m_context, *this
     );
+
+    const char* detectorSessionType = this->m_context.settings.render.forceX11Detector ? "x11" : XDG_SESSION_TYPE;
     this->m_fullScreenDetector
-	= sVideoFactories.createFullscreenDetector (XDG_SESSION_TYPE, this->m_context, *this->m_videoDriver);
+	= sVideoFactories.createFullscreenDetector (detectorSessionType, this->m_context, *this->m_videoDriver);
 
     this->m_BatteryDetector = std::make_unique<Render::Drivers::Detectors::BatteryDetector>(this->m_context);
 }
@@ -761,6 +763,7 @@ void WallpaperApplication::render () {
 	            return;
 	        }
 	    m_renderContext->setPause (false);
+	    this->m_isPaused = false;
 
 	    // account for paused duration in playlist timers
 	    const auto pausedNow = std::chrono::steady_clock::now ();

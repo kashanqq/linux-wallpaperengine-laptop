@@ -416,6 +416,11 @@ void ApplicationContext::loadSettingsFromArgv () {
 	.flag ()
 	.action ([this] (const std::string& value) -> void { this->settings.render.pauseOnUnfocused = true; });
 
+    performanceGroup.add_argument ("--force-x11-detector")
+	.help ("Forces the use of the X11 fullscreen detector even on Wayland (useful for KDE Plasma)")
+	.flag ()
+	.action ([this] (const std::string& value) -> void { this->settings.render.forceX11Detector = true; });
+
     performanceGroup.add_argument ("--fullscreen-pause-only-active")
 	.help ("Wayland only: pause only when a fullscreen window is active (activated)")
 	.flag ()
