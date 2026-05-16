@@ -52,16 +52,7 @@ X11FullScreenDetector::X11FullScreenDetector (Application::ApplicationContext& a
 X11FullScreenDetector::~X11FullScreenDetector () { this->stop (); }
 
 bool X11FullScreenDetector::anythingFullscreen () const {
-    // stop rendering if anything is fullscreen
-    bool isFullscreen = false;
-    XWindowAttributes attribs;
-    Window _;
-    Window* children;
-    unsigned int nchildren;
-
-    if (!XQueryTree (this->m_display, this->m_root, &_, &_, &children, &nchildren)) {
-	return false;
-    }
+    const auto& ctx = this->getApplicationContext();
 
     const auto ourWindow = reinterpret_cast<Window> (dynamic_cast<GLFWOpenGLDriver&> (this->m_driver).getWindow ());
     Window parentWindow;
@@ -75,8 +66,31 @@ bool X11FullScreenDetector::anythingFullscreen () const {
 	}
 
 	if (schildren) {
-	    XFree (children);
+	    XFree (schildren);
 	}
+    }
+
+    if (ctx.settings.render.pauseOnUnfocused) {
+	Window focusWindow;
+	int revertTo;
+	XGetInputFocus(this->m_display, &focusWindow, &revertTo);
+	if (focusWindow != None && focusWindow != PointerRoot && focusWindow != ourWindow && focusWindow != parentWindow && focusWindow != this->m_root) {
+	    return true;
+	}
+    }
+
+    if (!ctx.settings.render.pauseOnFullscreen) {
+        return false;
+    }
+
+    bool isFullscreen = false;
+    XWindowAttributes attribs;
+    Window _;
+    Window* children;
+    unsigned int nchildren;
+
+    if (!XQueryTree (this->m_display, this->m_root, &_, &_, &children, &nchildren)) {
+	return false;
     }
 
     for (unsigned int i = 0; i < nchildren; i++) {

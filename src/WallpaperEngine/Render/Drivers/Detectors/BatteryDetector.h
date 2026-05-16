@@ -20,5 +20,6 @@ private:
     Application::ApplicationContext& m_applicationContext;
     std::chrono::steady_clock::time_point m_lastCheckTime;
     bool m_lastBatteryStatus = false;
+    bool m_lastLoggedStatus = false;
 };
 } // namespace WallpaperEngine::Render::Drivers::Detectors

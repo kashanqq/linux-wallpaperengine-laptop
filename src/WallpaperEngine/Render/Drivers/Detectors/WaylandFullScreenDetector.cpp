@@ -46,6 +46,8 @@ namespace {
     struct FullscreenState {
 	bool pending = false;
 	bool current = false;
+	bool pendingMaximized = false;
+	bool currentMaximized = false;
 	bool pendingActivated = false;
 	bool currentActivated = false;
 	std::string appId {};
@@ -73,27 +75,44 @@ namespace {
 	const auto begin = static_cast<uint32_t*> (state->data);
 
 	toplevel->pending = false;
+	toplevel->pendingMaximized = false;
 	toplevel->pendingActivated = false;
 
 	for (auto it = begin; it < begin + state->size / sizeof (uint32_t); ++it) {
 	    if (*it == ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_FULLSCREEN) {
 		toplevel->pending = true;
 	    }
+	    if (*it == ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_MAXIMIZED) {
+		toplevel->pendingMaximized = true;
+	    }
 	    if (*it == ZWLR_FOREIGN_TOPLEVEL_HANDLE_V1_STATE_ACTIVATED) {
 		toplevel->pendingActivated = true;
 	    }
 	}
+	sLog.out ("[WAYLAND] HandleState: Fullscreen=", toplevel->pending, " Maximized=", toplevel->pendingMaximized, " Activated=", toplevel->pendingActivated, " AppId=", toplevel->appId);
     }
 
     bool isRelevant (
-	const WallpaperEngine::Application::ApplicationContext& ctx, const bool fullscreen, const bool activated,
+	const WallpaperEngine::Application::ApplicationContext& ctx, const bool fullscreen, const bool maximized, const bool activated,
 	const std::string& appId
     ) {
-	if (!fullscreen) {
-	    return false;
+	bool pause = false;
+	if (ctx.settings.render.pauseOnFullscreen && fullscreen) {
+	    pause = true;
+	    if (ctx.settings.render.pauseOnFullscreenOnlyWhenActive && !activated) {
+		pause = false;
+	    }
 	}
 
-	if (ctx.settings.render.pauseOnFullscreenOnlyWhenActive && !activated) {
+	if (ctx.settings.render.pauseOnMaximized && maximized) {
+	    pause = true;
+	}
+
+	if (ctx.settings.render.pauseOnUnfocused && activated) {
+	    pause = true;
+	}
+
+	if (!pause) {
 	    return false;
 	}
 
@@ -113,12 +132,12 @@ namespace {
 
     bool isFullscreenRelevant (const FullscreenState& toplevel) {
 	const auto& ctx = toplevel.data->detector->getApplicationContext ();
-	return isRelevant (ctx, toplevel.pending, toplevel.pendingActivated, toplevel.appId);
+	return isRelevant (ctx, toplevel.pending, toplevel.pendingMaximized, toplevel.pendingActivated, toplevel.appId);
     }
 
     bool isCurrentlyRelevant (const FullscreenState& toplevel) {
 	const auto& ctx = toplevel.data->detector->getApplicationContext ();
-	return isRelevant (ctx, toplevel.current, toplevel.currentActivated, toplevel.appId);
+	return isRelevant (ctx, toplevel.current, toplevel.currentMaximized, toplevel.currentActivated, toplevel.appId);
     }
 
     void toplevelHandleDone (void* data, struct zwlr_foreign_toplevel_handle_v1* handle) {
@@ -140,6 +159,7 @@ namespace {
 	}
 
 	toplevel->current = toplevel->pending;
+	toplevel->currentMaximized = toplevel->pendingMaximized;
 	toplevel->currentActivated = toplevel->pendingActivated;
     }
 
@@ -180,6 +200,8 @@ namespace {
 	const auto toplevel = new FullscreenState {
 	    .pending = false,
 	    .current = false,
+	    .pendingMaximized = false,
+	    .currentMaximized = false,
 	    .pendingActivated = false,
 	    .currentActivated = false,
 	    .appId = {},
@@ -201,6 +223,7 @@ namespace {
 
 void handleGlobal (void* data, struct wl_registry* registry, uint32_t name, const char* interface, uint32_t version) {
     const auto detector = static_cast<WaylandFullScreenDetector*> (data);
+    sLog.out ("[WAYLAND] Global interface found: ", interface);
     if (strcmp (interface, zwlr_foreign_toplevel_manager_v1_interface.name) == 0) {
 	detector->m_toplevelManager = static_cast<zwlr_foreign_toplevel_manager_v1*> (
 	    wl_registry_bind (registry, name, &zwlr_foreign_toplevel_manager_v1_interface, 3)

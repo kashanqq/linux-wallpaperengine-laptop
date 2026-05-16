@@ -406,6 +406,16 @@ void ApplicationContext::loadSettingsFromArgv () {
 	.flag ()
 	.action ([this] (const std::string& value) -> void { this->settings.render.pauseOnFullscreen = false; });
 
+    performanceGroup.add_argument ("--maximized-pause")
+	.help ("Pauses the background when a window is maximized")
+	.flag ()
+	.action ([this] (const std::string& value) -> void { this->settings.render.pauseOnMaximized = true; });
+
+    performanceGroup.add_argument ("--unfocused-pause")
+	.help ("Pauses the background when another window is focused/activated")
+	.flag ()
+	.action ([this] (const std::string& value) -> void { this->settings.render.pauseOnUnfocused = true; });
+
     performanceGroup.add_argument ("--fullscreen-pause-only-active")
 	.help ("Wayland only: pause only when a fullscreen window is active (activated)")
 	.flag ()
