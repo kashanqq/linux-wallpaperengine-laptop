@@ -239,7 +239,9 @@ endif()
 if(DEMOMODE)
     set(DEMOMODE_SOURCES
         src/recording.cpp
-        src/recording.h)
+        src/recording.h
+            src/WallpaperEngine/Render/Drivers/Detectors/BatteryDetector.cpp
+            src/WallpaperEngine/Render/Drivers/Detectors/BatteryDetector.h)
     message(WARNING "Enabling demo mode will automatically record 5 seconds and stop the software. This is used internally to produce the video seen on the website as a sort of status report")
 endif()
 if(NOT WAYLAND_SUPPORT_FOUND AND NOT X11_SUPPORT_FOUND)
@@ -357,6 +359,8 @@ set(COMMON_SOURCES
 
     src/WallpaperEngine/Render/Drivers/Detectors/FullScreenDetector.cpp
     src/WallpaperEngine/Render/Drivers/Detectors/FullScreenDetector.h
+    src/WallpaperEngine/Render/Drivers/Detectors/BatteryDetector.cpp
+    src/WallpaperEngine/Render/Drivers/Detectors/BatteryDetector.h
 
     src/WallpaperEngine/Render/Drivers/Output/Output.cpp
     src/WallpaperEngine/Render/Drivers/Output/Output.h
